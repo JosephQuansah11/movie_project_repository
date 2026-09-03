@@ -15,7 +15,10 @@ env:
 jobs:
   java:
     name: Java tests
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -23,8 +26,14 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: gradle
-      - name: Run backend tests
+      - name: Run backend tests on Linux
+        if: runner.os == 'Linux'
+        run: gradle test --no-daemon
+        shell: bash
+      - name: Run backend tests on non-Linux
+        if: runner.os != 'Linux'
         run: ./gradlew test --no-daemon
+        shell: bash
 
   frontend:
     name: Frontend tests and build
