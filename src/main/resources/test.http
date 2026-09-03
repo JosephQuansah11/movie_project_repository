@@ -1,0 +1,415 @@
+@host = http://localhost:8080/movies
+@keycloak = http://localhost:8081
+@keycloak_realm = master
+@keycloak_admin_username = admin
+@keycloak_admin_password = admin
+@keycloak_client_id = admin-cli
+@keycloak_app_realm = movie_project_keycloak
+@keycloak_app_client_id = movie_project_client
+@keycloak_app_client_secret = FvS0v7FLwngiKKn6CTqQykNN9xqQGoLl2gJKc8YAHRJBUn8GLPAiHzi4gte7OLC8C1MNKFh0R1hOO8n0lkuigE
+@app = http://localhost:8080
+@new_username = test-user-2026
+@new_user_email = test-user-2026@example.com
+@new_user_password = TestPassword123!
+@title = Inception
+@director = Christopher Nolan
+
+
+
+
+
+### Check Keycloak realm endpoint
+GET {{keycloak}}/realms/{{keycloak_realm}}
+
+
+
+
+
+### Request a Keycloak admin token
+POST {{keycloak}}/realms/{{keycloak_realm}}/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id={{keycloak_client_id}}&username={{keycloak_admin_username}}&password={{keycloak_admin_password}}
+
+
+
+
+
+### Get a CSRF token before registration
+# # @name getCsrf
+# GET {{app}}/users/csrf
+
+
+
+
+
+
+
+
+### Register a user in Keycloak and the application database
+# POST {{app}}/users
+# Content-Type: application/json
+# X-XSRF-TOKEN: {{getCsrf.response.body.$.token}}
+
+# {
+#   "username": "{{new_username}}",
+#   "email": "{{new_user_email}}",
+#   "firstName": "Test",
+#   "lastName": "User",
+#   "password": "{{new_user_password}}"
+# }
+
+
+
+
+### Log in as the registered application user
+# @name loginUser
+POST {{keycloak}}/realms/{{keycloak_app_realm}}/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id={{keycloak_app_client_id}}&client_secret={{keycloak_app_client_secret}}&username={{new_username}}&password={{new_user_password}}
+
+
+
+
+
+
+### Call the protected application endpoint with the user's token
+GET {{app}}/
+Authorization: Bearer {{loginUser.response.body.$.access_token}}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### Get all movies
+GET {{host}}
+
+
+
+
+
+### Get movie by title
+GET {{host}}/title/{{title}}
+
+
+
+
+
+### Get movie by director
+GET {{host}}/director/{{director}}
+
+
+
+
+
+### Add new movie
+POST {{host}}
+Content-Type: application/json
+Authorization: Bearer {{loginUser.response.body.$.access_token}}
+
+{
+  "title": "The East Palace",
+  "genre": "Science Fiction",
+  "language": "Korean with English subtitles",
+  "director": "Joseph Quansah Kotei",
+  "description": "A man who walks the spirit world and a court lady who hears the dead enter the East Palace by the king's orders - can they unravel its dark secrets",
+  "isSeasonal": true,
+  "rating": 4.5,
+  "releaseYear": 2026,
+  "price": 2.00,
+  "duration": 120
+}
+
+
+
+
+
+
+
+### Update movie
+PUT {{host}}/1
+Content-Type: application/json
+Authorization: Bearer {{loginUser.response.body.$.access_token}}
+
+{
+  "title": "The East Palace",
+  "director": "Korean Drama",
+  "genre": "Science Fiction",
+  "description": "A man who walks the spirit world and a court lady who hears the dead enter the East Palace by the king's orders - can they unravel its dark secrets",
+  "releaseYear": 2026,
+  "language": "Korean with English subtitles",
+  "isSeasonal": true,
+  "rating": 4,
+  "price": 2.00,
+  "duration": 120
+}
+
+
+
+
+
+
+
+
+### Chat with movie assistant
+POST {{host}}/assistant
+Content-Type: application/json
+Authorization: Bearer {{loginUser.response.body.$.access_token}}
+
+{
+  "userRequest": "Can you recommend a good romance movie?"
+}
+
+
+
+
+
+
+
+
+### Chat with movie assistant for watch links
+POST {{app}}/movie-assistant/chat
+Content-Type: application/json
+Authorization: Bearer {{loginUser.response.body.$.access_token}}
+
+{
+  "userRequest": "Can you recommend a good romance movie 2026?"
+}
+
+
+
+
+### Check connections with ollama using curl post function
+POST http://localhost:11434/api/chat
+Content-Type: application/json
+
+{
+  "model": "codeqwen:latest",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello, can you recommend a good action movie?"
+    }
+  ],
+  "stream": false
+}
+
+
+
+
+### AI Chat with authenticated user token
+# @name aiChatAuthenticated
+POST {{app}}/movie-assistant/chat
+Content-Type: application/json
+Authorization: Bearer {{loginUser.response.body.$.access_token}}
+
+{
+  "userRequest": "Recommend me a sci-fi movie with good reviews"
+}
+
+
+
+
+### AI Chat with multiple models request
+# @name aiChatMultiModel
+POST {{app}}/movie-assistant/chat
+Content-Type: application/json
+Authorization: Bearer {{loginUser.response.body.$.access_token}}
+
+{
+  "userRequest": "What are some popular thriller movies from 2024?",
+  "selectedModels": ["codeqwen:latest", "kimi:latest"]
+}
+
+
+
+
+### Get authenticated user's movie history
+# @name getUserHistory
+GET {{app}}/users/me/history
+Authorization: Bearer {{loginUser.response.body.$.access_token}}
+
+
+
+
+### Add movie to user's watched history
+# @name addWatchedMovie
+POST {{app}}/users/me/history/watched
+Content-Type: application/x-www-form-urlencoded
+Authorization: Bearer {{loginUser.response.body.$.access_token}}
+
+movieTitle=Inception&genre=Science Fiction&watchUrl=https://www.netflix.com/watch/inception
+
+
+
+
+### Add movie to user's to-watch list
+# @name addToWatchMovie
+POST {{app}}/users/me/history/to-watch
+Content-Type: application/x-www-form-urlencoded
+Authorization: Bearer {{loginUser.response.body.$.access_token}}
+
+movieTitle=The Dark Knight Rises&genre=Action Thriller&watchUrl=https://www.amazon.com/watch/dark-knight-rises
+
+
+
+
+### Add another movie to to-watch list
+POST {{app}}/users/me/history/to-watch
+Content-Type: application/x-www-form-urlencoded
+Authorization: Bearer {{loginUser.response.body.$.access_token}}
+
+movieTitle=Interstellar&genre=Science Fiction&watchUrl=https://www.amazon.com/watch/interstellar
+
+
+
+
+### Get updated user history after adding movies
+# @name getHistoryAfterAdd
+GET {{app}}/users/me/history
+Authorization: Bearer {{loginUser.response.body.$.access_token}}
+
+
+
+
+### Archive stale to-watch movies (older than 2-4 months)
+# @name archiveStaleMovies
+POST {{app}}/users/me/history/archive
+Authorization: Bearer {{loginUser.response.body.$.access_token}}
+
+
+
+
+### Remove a specific movie from user's history
+# @name removeMovieFromHistory
+DELETE {{app}}/users/me/history/1
+Authorization: Bearer {{loginUser.response.body.$.access_token}}
+
+
+
+
+### Get history for another specific user by userId
+GET {{app}}/users/2/history
+
+
+
+
+### Add watched movie for specific user (admin endpoint)
+POST {{app}}/users/2/history/watched
+Content-Type: application/x-www-form-urlencoded
+
+movieTitle=The Shawshank Redemption&genre=Drama&watchUrl=https://www.netflix.com/watch/shawshank
+
+
+
+
+### Get history after admin add
+GET {{app}}/users/2/history
+
+
+
+
+
+
+
+
+
+
+
+
+
+### Assertions
+
+### Check Keycloak realm endpoint
+Status: 200
+
+### Request a Keycloak admin token
+Status: 200
+Content-Type: application/json
+
+### Log in as the registered application user
+Status: 200
+Content-Type: application/json
+
+### Call the protected application endpoint
+Status: 200
+
+### Get all movies
+Status: 200
+Content-Type: application/json
+$.length: 10
+
+### Get movie by title
+Status: 200
+Content-Type: application/json
+$.length: 1
+
+### Get movie by director
+Status: 200
+Content-Type: application/json
+
+### AI Chat with authenticated user token
+Status: 200
+Content-Type: application/json
+$.success: true
+
+### AI Chat with multiple models request
+Status: 200
+Content-Type: application/json
+$.success: true
+
+### Get authenticated user's movie history
+Status: 200
+Content-Type: application/json
+$.success: true
+
+### Add movie to user's watched history
+Status: 200
+Content-Type: application/json
+$.success: true
+$.message: "Movie marked as watched."
+
+### Add movie to user's to-watch list
+Status: 200
+Content-Type: application/json
+$.success: true
+$.message: "Movie added to watch list."
+
+### Get updated user history after adding movies
+Status: 200
+Content-Type: application/json
+$.success: true
+$.count: 2
+
+### Archive stale to-watch movies
+Status: 200
+Content-Type: application/json
+$.success: true
+
+### Remove a specific movie from user's history
+Status: 200
+Content-Type: application/json
+$.success: true
+$.message: "Movie removed from history."
+
+### Get history for another specific user by userId
+Status: 200
+Content-Type: application/json
+
+### Add watched movie for specific user
+Status: 200
+Content-Type: application/json
+
+### Get history after admin add
+Status: 200
+Content-Type: application/json
